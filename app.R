@@ -7,129 +7,27 @@ conflicted::conflict_prefer("filter", "dplyr")
 conflicted::conflicts_prefer(DT::renderDataTable)
 conflicted::conflicts_prefer(shiny::renderDataTable)
 
+source("sources.R")
 
-`%notin%`<- negate(`%in%`)
 
-# operator returning true if var NULL
-`%==%` <- function (e1, e2) {
-  if (is.null(e2)) {
-    return(TRUE)
-  } else {
-    return(e1 == e2)
-  }
-}
+# TO DO
+# fetch optimizer debug real optimum
+# check if deck is opti
 
 
 
+Data_from_other_repo <- "../magic_data_entry/"
 
 
+data_folder <- paste0(Data_from_other_repo,"data/")
 
 
-
-deck_parser <- function(deck_path) {
-  deck <- read.delim(deck_path, header = FALSE, blank.lines.skip = FALSE) %>%
-    filter(!str_detect(.$V1, regex("deck|Sideboard", ignore_case = TRUE))) %>%
-    mutate(Side = str_detect(.$V1, regex("^$", ignore_case = TRUE))) %>%
-    mutate(
-      quantite = as.numeric(str_extract_all(.$V1, "^[:digit:]*\\S*")),
-      Card_name = tolower(str_extract(.$V1, "(?<=[:digit:]\\s).*"))
-    ) %>%
-    select(-V1)
-}
-
-
-
-Decklist_parse_add_type_fun <- function(path,Modern_card_DB_fun = Modern_card_DB){
-  
-  
-  
-  Modern_card_with_simplified_type <- Modern_card_DB_fun %>% 
-    mutate(simplified_type = ifelse(
-      str_detect(type_line,"Creature"),
-      "Creature",
-      ifelse(
-        str_detect(type_line,"Land"),
-        "Land",
-        ifelse(
-          str_detect(type_line,"Enchantment"),
-          "Enchantment",
-          ifelse(
-            str_detect(type_line,"Instant|Sorcery"),
-            "Spell",
-            ifelse(
-              str_detect(type_line,"Artifact"),
-              "Artifact",
-              ifelse(
-                str_detect(type_line,"Planeswalker"),
-                "Planeswalker", 
-                ifelse(
-                  str_detect(type_line,"Battle"),
-                  "Battle", type_line
-                  
-                )
-              )
-              
-              
-            )
-          )
-          
-        )
-      )
-    ),
-    name = tolower(name)
-    
-    ) %>%
-    drop_na(simplified_type) %>% 
-    select(name,simplified_type)
-  
-  
-  
-  
-  
-  list_import_base <- deck_parser(
-    
-    path
-  ) %>% 
-    left_join(
-      Modern_card_with_simplified_type,
-      by = c("Card_name" = "name")
-    )
-  
-  Side_cut_point <- which(list_import_base$Side)[1]
-  
-  
-  list_import_base$Side[Side_cut_point:nrow(list_import_base)] <- TRUE
-  
-  list_import <- list_import_base[-Side_cut_point,]
-  
-  # list_import <- list(
-  #   main_deck = list_import_base[
-  #     1:which(list_import_base$Side)-1,] %>% select(-Side),
-  #   sideboard = list_import_base[
-  #     (which(list_import_base$Side)+1):
-  #       nrow(list_import_base),] %>% select(-Side)
-  # )
-  
-  return(list_import)
-  
-}
-
-
-
-
-
-
-
-
-
-
-
-
-data_folder <- "../magic_data_entry/data/"
 
 Modern_card_DB <- read.csv("data/DBcarte_modern.csv")
 
-# side_plan_from_entry <- readRDS(file.path(data_folder,"df_Side_table.rds"))
+
+
+side_plan_from_entry_base <- readRDS(file.path(data_folder,"df_Side_table.rds"))
 
 
 liste_of_side_matchup <- list(
@@ -231,8 +129,7 @@ ui <- navbarPage(
           selected = NULL,
           multiple = TRUE
         )
-      ),
-      actionButton("browser", label ="browser" )
+      )
     ),
     mainPanel(
       wellPanel(
@@ -298,12 +195,54 @@ ui <- navbarPage(
     sidebarPanel(
       wellPanel(
         shinyjs::useShinyjs(),
-        uiOutput("Deck_from_entry_deck"),
+          selectInput(
+            inputId = "Deck_from_entry_deck_test",
+            label = "Deck",
+            choices = c("", unique(side_plan_from_entry_base$Deck)),
+            multiple = FALSE
+      ),
+      #     selectInput(
+      #       inputId = "Deck_from_entry_color_deck",
+      #       label = "Color deck",
+      #       choices = c(NULL, unique(side_plan_from_entry_base$color_deck)),
+      #       multiple = TRUE
+      #     ),
+      # 
+      #     selectInput(
+      #       inputId = "Deck_from_entry_Companion",
+      #       label = "Companion",
+      #       choices = c(NULL, unique(side_plan_from_entry_base$Companion)),
+      #       multiple = TRUE
+      #     ),
+      # 
+      #     selectInput(
+      #       inputId = "Deck_from_entry_wishboard",
+      #       label = "Wishboard",
+      #       choices = c(NULL, unique(side_plan_from_entry_base$Wish_board)),
+      #       multiple = TRUE
+      #     ),
+      #     selectInput(
+      #       inputId = "Deck_from_entry_Player",
+      #       label = "Player",
+      #       choices = c(NULL, unique(side_plan_from_entry_base$Player)),
+      #       multiple = TRUE
+      #     ),
+      # 
+      #     selectInput(
+      #       inputId = "Deck_from_entry_link_deck_list",
+      #       label = "Wishboard",
+      #       choices = c(NULL, unique(side_plan_from_entry_base$link_deck_list)),
+      #       multiple = TRUE
+      #     ),
+        
+        
+        # uiOutput("Deck_from_entry_deck_test"),
         uiOutput("Deck_from_entry_color_deck"),
         uiOutput("Deck_from_entry_Companion"),
         uiOutput("Deck_from_entry_wishboard"),
         uiOutput("Deck_from_entry_Player"),
         h2("Choose list"),
+      actionButton("browser", label ="browser" ),
         uiOutput("Deck_from_entry_Deck_list")
       )
     ),
@@ -315,8 +254,47 @@ ui <- navbarPage(
       
     )
   ),
+  tabPanel(
+    "Fetch_optimizer",
+    sidebarPanel(
+      wellPanel(
+        shinyjs::useShinyjs(),
+        selectInput(
+          inputId = "Deck_type_fetch",
+          label = "Deck",
+          choices = c("", unique(side_plan_from_entry_base$Deck)),
+          multiple = FALSE
+        ),
+        uiOutput("Deck_type_fetch_color_deck"),
+        uiOutput("Deck_type_fetch_Companion"),
+        uiOutput("Deck_type_fetch_wishboard"),
+        uiOutput("Deck_type_fetch_Player"),
+        h2("Choose list"),
+        uiOutput("Deck_type_fetch_Deck_list")
+      ),
+      wellPanel(
+        h2("Upload list"),
+        fileInput("deck_list_fetch_opti", 
+                  NULL,
+                  buttonLabel = "Upload...",
+                  accept = c(".csv", ".txt")
+        ),
+      )
+    ),
+    
+    
+    mainPanel(
+     h2( textOutput("res_text_opti_fetch")),
+      DTOutput('efetch_opti_res_base', width = "50%"),
+      DTOutput('efetch_opti_res_number_of_fetchable', width = "50%")
+      
+    )
+  ),
   
   
+
+
+
 
   
   id = "Tab_active_nav_bar"
@@ -431,6 +409,11 @@ observeEvent( c(input$Deck_dash_side,input$Deck_dash_side_grouping_variable),{
 )
   
   
+
+
+
+
+
    
 ################################################################################  
 ############################   Empty_side_from_list  ###########################
@@ -498,90 +481,258 @@ output$empty_Side_table_from_list <- renderDT({
 
 
 
+
+observeEvent(input$browser, {
+  browser()
+})
+
+
+
+
+
+
+
+
+observeEvent( input$Deck_from_entry_deck_test,{  
+  
+  Side_from_entry_filter_with_deck <- reactive({
+    reload_data_switch_tab()$df_Side_table() %>%
+      filter(
+        Deck == input$Deck_from_entry_deck_test
+      )
+  }
+  )
+  
+  
+  output$Deck_from_entry_color_deck <- renderUI({
+    auto_select_input_if_one_choice(
+      inputId = "Deck_from_entry_color_deck",
+      label = "Color deck",
+       choices = unique(Side_from_entry_filter_with_deck()$color_deck), #c(NULL, unique(Side_from_entry_filter_with_deck()$color_deck)),
+      multiple = TRUE
+    )
+  })
+  
+  output$Deck_from_entry_Companion <- renderUI({
+    auto_select_input_if_one_choice(
+      inputId = "Deck_from_entry_Companion",
+      label = "Companion",
+      choices = unique(Side_from_entry_filter_with_deck()$Companion),#c(NULL, unique(Side_from_entry_filter_with_deck()$Companion)),
+      multiple = TRUE
+    )
+  })
+  
+  output$Deck_from_entry_wishboard <- renderUI({
+    auto_select_input_if_one_choice(
+      inputId = "Deck_from_entry_wishboard",
+      label = "Wishboard",
+      choices = unique(Side_from_entry_filter_with_deck()$Wish_board),#c(NULL, unique(Side_from_entry_filter_with_deck()$Wish_board)),
+      multiple = TRUE
+    )
+  })
+  output$Deck_from_entry_Player <- renderUI({
+    auto_select_input_if_one_choice(
+      inputId = "Deck_from_entry_Player",
+      label = "Player",
+      choices = c(NULL, unique(Side_from_entry_filter_with_deck()$Player)),
+      multiple = TRUE
+    )
+
+  })
+  
+  
+})
+
+# # Need to add date
 Side_from_entry_filter <- reactive({
   reload_data_switch_tab()$df_Side_table() %>%
     filter(
-      Deck %==% input$Deck_from_entry_deck,
+      Deck %==% input$Deck_from_entry_deck_test,
       color_deck %==% input$Deck_from_entry_color_deck,
       Companion %==% input$Deck_from_entry_Companion,
       Wish_board %==% input$Deck_from_entry_wishboard,
       Player %==% input$Deck_from_entry_Player
-           )
-  }
+    )
+}
 )
-
-
-
-output$Deck_from_entry_deck <- renderUI({
-  
-  selectInput(
-    inputId = "Deck_from_entry_Deck",
-    label = "Deck",
-    choices = c(NULL, unique(Side_from_entry_filter()$Deck)),
-    multiple = TRUE
-  )
-})
-
-
-output$Deck_from_entry_color_deck <- renderUI({
-  
-  selectInput(
-    inputId = "Deck_from_entry_color_deck",
-    label = "Color deck",
-    choices = c(NULL, unique(Side_from_entry_filter()$color_deck)),
-    multiple = TRUE
-  )
-})
-
-
-output$Deck_from_entry_Companion <- renderUI({
-  
-  selectInput(
-    inputId = "Deck_from_entry_Companion",
-    label = "Companion",
-    choices = c(NULL, unique(Side_from_entry_filter()$Companion)),
-    multiple = TRUE
-  )
-})
-
-
-output$Deck_from_entry_wishboard <- renderUI({
-  selectInput(
-    inputId = "Deck_from_entry_wishboard",
-    label = "Wishboard",
-    choices = c(NULL, unique(Side_from_entry_filter()$Wish_board)),
-    multiple = TRUE
-  )
-})
-
-
-
-output$Deck_from_entry_Player <- renderUI({
-  selectInput(
-    inputId = "Deck_from_entry_Player",
-    label = "Player",
-    choices = c(NULL, unique(Side_from_entry_filter()$Player)),
-    multiple = TRUE
-  )
-})
-
-
-
-# Need to add date
 
 output$Deck_from_entry_Deck_list <- renderUI({
   selectInput(
     inputId = "Deck_from_entry_link_deck_list",
-    label = "Wishboard",
-    choices = c(NULL, unique(Side_from_entry_filter()$link_deck_list)),
+    label = "list",
+    choices = c("","All", unique(Side_from_entry_filter()$link_deck_list)),
     multiple = TRUE
   )
 })
 
 
 
+################################################################################  
+############################   Fetch optimizer  ###########################
+################################################################################   
+
+observeEvent( input$Deck_type_fetch,{  
+  
+  fetch_opti_filter_with_deck <- reactive({
+    reload_data_switch_tab()$df_Side_table() %>%
+      filter(
+        Deck == input$Deck_type_fetch
+      )
+  }
+  )
+  
+  
+  output$Deck_type_fetch_color_deck <- renderUI({
+    auto_select_input_if_one_choice(
+      inputId = "Deck_type_fetch_color_deck",
+      label = "Color deck",
+      choices = unique(fetch_opti_filter_with_deck()$color_deck), 
+      multiple = TRUE
+    )
+  })
+  
+  output$Deck_type_fetch_Companion <- renderUI({
+    auto_select_input_if_one_choice(
+      inputId = "Deck_type_fetch_Companion",
+      label = "Companion",
+      choices = unique(fetch_opti_filter_with_deck()$Companion),
+      multiple = TRUE
+    )
+  })
+  
+  output$Deck_type_fetch_wishboard <- renderUI({
+    auto_select_input_if_one_choice(
+      inputId = "Deck_type_fetch_wishboard",
+      label = "Wishboard",
+      choices = unique(fetch_opti_filter_with_deck()$Wish_board),
+      multiple = TRUE
+    )
+  })
+  output$Deck_type_fetch_Player <- renderUI({
+    auto_select_input_if_one_choice(
+      inputId = "Deck_type_fetch_Player",
+      label = "Player",
+      choices = c(NULL, unique(fetch_opti_filter_with_deck()$Player)),
+      multiple = TRUE
+    )
+    
+  })
+  
+  
+})
+
+# # Need to add date
+fetch_from_entry_filter <- reactive({
+  reload_data_switch_tab()$df_Side_table() %>%
+    filter(
+      Deck %==% input$Deck_type_fetch,
+      color_deck %==% input$Deck_type_fetch_color_deck,
+      Companion %==% input$Deck_type_fetch_Companion,
+      Wish_board %==% input$Deck_type_fetch_wishboard,
+      Player %==% input$Deck_type_fetch_Player
+    )
+}
+)
+
+output$Deck_type_fetch_Deck_list <- renderUI({
+  selectInput(
+    inputId = "Deck_type_fetch_Deck_list",
+    label = "list",
+    choices = c("","All", unique(fetch_from_entry_filter()$link_deck_list)),
+    multiple = FALSE
+  )
+})
+
+fileInput("deck_list_fetch_opti", 
+          NULL,
+          buttonLabel = "Upload...",
+          accept = c(".csv", ".txt")
+)
+
+
+result_opti <- eventReactive({
+  input$deck_list_fetch_opti
+  input$Deck_type_fetch_Deck_list
+  },{
+    # browser()
+    if (input$Deck_type_fetch_Deck_list != ""){
+  result_opti <- Fetch_land_optimizer(
+    file.path(Data_from_other_repo,input$Deck_type_fetch_Deck_list),
+                            Modern_card_DB,
+                            list_format ="csv"
+    )
+    } else if(!is.null(input$deck_list_fetch_opti)){
+
+      if (!(tools::file_ext(input$deck_list_fetch_opti$datapath) %in% c('csv',"txt"))){
+        validate("file must be .txt or .csv")
+      }
+      
+      
+      
+      result_opti <- Fetch_land_optimizer(
+        input$deck_list_fetch_opti$datapath,
+        Modern_card_DB,
+        list_format =tools::file_ext(input$deck_list_fetch_opti$datapath))
+      
+      
+      
+    }
+    
+
+    
+    
+    
+
+  }
+  
+)
+
+
+
+
+
+
+
+observeEvent(req(result_opti()),{
+
+  output$res_text_opti_fetch <- renderText({ result_opti()$text })
+  
+  output$efetch_opti_res_base <- renderDT({
+    req(result_opti())
+    datatable(result_opti()$result_base,
+              rownames = FALSE,
+              # filter = "top",
+              options = list(
+                dom = 'tB'
+              )
+              
+    )}
+    
+  )
+
+    output$efetch_opti_res_number_of_fetchable <- renderDT({
+      req(result_opti())
+      datatable(result_opti()$result,
+                rownames = FALSE,
+                # filter = "top",
+                options = list(
+                  dom = 'tB'
+                )
+
+      )}
+
+    )
+
+
+
+
+    # shinyjs::reset('deck_list_fetch_opti')
+    # shinyjs::reset('Deck_type_fetch_Deck_list')
 
   
+  
+})
+
 }
 
 
@@ -592,6 +743,71 @@ output$Deck_from_entry_Deck_list <- renderUI({
 
 
 shinyApp(ui, server)
+
+
+
+# 
+# a <- side_plan_from_entry_base %>% 
+#   filter(link_deck_list %in% c(
+#     "data/deck_list/Omnath Control/Any_Kaheera, the Orphanguard_No wish board_RespectTheCat_2023-09-08_Mtgo leagu_.csv",
+#     "data/deck_list/Omnath Control/Any_Kaheera, the Orphanguard_No wish board_Andrea Mengucci_2023-09-08_VEEDEO_.csv"
+#                                )
+#     )
+# 
+# 
+# 
+# d <- a %>% 
+#   mutate(
+#     IN = str_split(IN," ; "),
+#     OUT = str_split(OUT," ; ")
+#   ) %>% 
+#   pivot_longer(cols = c(IN,OUT)
+#                
+#                ) %>% 
+#   unnest_longer(col = c(value) 
+#   )
+# 
+# 
+# 
+# 
+# b <-  lapply(unique(a$link_deck_list), function(x){
+#   read.csv(
+#     paste0(Data_from_other_repo,
+#            x
+#     )
+#   )
+# }
+# )
+# 
+# names(b) <- unique(a$link_deck_list)
+#   
+#   
+# 
+#   
+# a <- side_plan_from_entry_base %>% 
+#   filter(Player == "mistakenn69"
+#   ) %>% select(Matchup,Play_Draw,IN,OUT)
+# 
+#   
+# 
+# 
+# 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -674,3 +890,250 @@ shinyApp(ui, server)
 #     )
 #   )  
 #   ),
+
+
+
+
+
+
+
+
+
+
+
+################################################################################
+
+
+# old dynamic multiple input selection
+
+################################################################################
+
+
+# Side_from_entry_filter <- reactive({
+#   reload_data_switch_tab()$df_Side_table() %>%
+#     filter(
+#       Deck %==% input$Deck_from_entry_deck_test,
+#       color_deck %==% input$Deck_from_entry_color_deck,
+#       Companion %==% input$Deck_from_entry_Companion,
+#       Wish_board %==% input$Deck_from_entry_wishboard,
+#       Player %==% input$Deck_from_entry_Player
+#     )
+# }
+# )
+# 
+# 
+# 
+# 
+# 
+# 
+# # output$Deck_from_entry_deck_test <- renderUI({
+# #   selectInput(
+# #     inputId = "Deck_from_entry_deck_test",
+# #     label = "Deck",
+# #     choices = c(NULL, unique(Side_from_entry_filter()$Deck)),
+# #     multiple = TRUE
+# #   )
+# # })
+# 
+# output$Deck_from_entry_deck_test <- renderUI({
+#   
+#   choice_Deck <- reactive({
+#     reload_data_switch_tab()$df_Side_table() %>%
+#       filter(
+#         color_deck %==% input$Deck_from_entry_color_deck,
+#         Companion %==% input$Deck_from_entry_Companion,
+#         Wish_board %==% input$Deck_from_entry_wishboard,
+#         Player %==% input$Deck_from_entry_Player
+#       ) %>%
+#       pull(Deck)
+#   }
+#   )
+#   
+#   
+#   selectInput(
+#     inputId = "Deck_from_entry_deck_test",
+#     label = "Deck",
+#     choices = c(NULL, unique(choice_Deck())),
+#     multiple = TRUE
+#   )
+# })
+# 
+# 
+# 
+# # output$Deck_from_entry_color_deck <- renderUI({
+# #   selectInput(
+# #     inputId = "Deck_from_entry_color_deck",
+# #     label = "Color deck",
+# #     choices = c(NULL, unique(Side_from_entry_filter()$color_deck)),
+# #     multiple = TRUE
+# #   )
+# # })
+# output$Deck_from_entry_color_deck <- renderUI({
+#   
+#   choice_color_deck <- reactive({
+#     reload_data_switch_tab()$df_Side_table() %>%
+#       filter(
+#         Deck %==% input$Deck_from_entry_deck_test,
+#         Companion %==% input$Deck_from_entry_Companion,
+#         Wish_board %==% input$Deck_from_entry_wishboard,
+#         Player %==% input$Deck_from_entry_Player
+#       ) %>%
+#       pull(color_deck)
+#   }
+#   )
+#   
+#   selectInput(
+#     inputId = "Deck_from_entry_color_deck",
+#     label = "Color deck",
+#     choices = c(NULL, unique(choice_color_deck())),
+#     multiple = TRUE
+#   )
+# })
+# 
+# 
+# # output$Deck_from_entry_Companion <- renderUI({
+# #   selectInput(
+# #     inputId = "Deck_from_entry_Companion",
+# #     label = "Companion",
+# #     choices = c(NULL, unique(Side_from_entry_filter()$Companion)),
+# #     multiple = TRUE
+# #   )
+# # })
+# output$Deck_from_entry_Companion <- renderUI({
+#   choice_Companion <- reactive({
+#     reload_data_switch_tab()$df_Side_table() %>%
+#       filter(
+#         Deck %==% input$Deck_from_entry_deck_test,
+#         color_deck %==% input$Deck_from_entry_color_deck,
+#         Wish_board %==% input$Deck_from_entry_wishboard,
+#         Player %==% input$Deck_from_entry_Player
+#       ) %>%
+#       pull(Companion)
+#   }
+#   )
+#   selectInput(
+#     inputId = "Deck_from_entry_Companion",
+#     label = "Companion",
+#     choices = c(NULL, unique(choice_Companion())),
+#     multiple = TRUE
+#   )
+# })
+# 
+# # output$Deck_from_entry_wishboard <- renderUI({
+# #   selectInput(
+# #     inputId = "Deck_from_entry_wishboard",
+# #     label = "Wishboard",
+# #     choices = c(NULL, unique(Side_from_entry_filter()$Wish_board)),
+# #     multiple = TRUE
+# #   )
+# # })
+# 
+# output$Deck_from_entry_wishboard <- renderUI({
+#   choice_Wish_board <- reactive({
+#     reload_data_switch_tab()$df_Side_table() %>%
+#       # Side_from_entry_filter() %>% 
+#       filter(
+#         Deck %==% input$Deck_from_entry_deck_test,
+#         color_deck %==% input$Deck_from_entry_color_deck,
+#         Companion %==% input$Deck_from_entry_Companion,
+#         Player %==% input$Deck_from_entry_Player
+#       ) %>%
+#       pull(Wish_board)
+#   }
+#   )
+#   
+#   
+#   
+#   selectInput(
+#     inputId = "Deck_from_entry_wishboard",
+#     label = "Wishboard",
+#     choices = c(NULL, unique(choice_Wish_board())),
+#     multiple = TRUE
+#   )
+# })
+# 
+# 
+# 
+# # output$Deck_from_entry_Player <- renderUI({
+# #   selectInput(
+# #     inputId = "Deck_from_entry_Player",
+# #     label = "Player",
+# #     choices = c(NULL, unique(Side_from_entry_filter()$Player)),
+# #     multiple = TRUE
+# #   )
+# #   
+# # })
+# 
+# output$Deck_from_entry_Player <- renderUI({
+#   choice_player <- reactive({
+#     reload_data_switch_tab()$df_Side_table() %>%
+#       filter(
+#         Deck %==% input$Deck_from_entry_deck_test,
+#         color_deck %==% input$Deck_from_entry_color_deck,
+#         Companion %==% input$Deck_from_entry_Companion,
+#         Wish_board %==% input$Deck_from_entry_wishboard
+#       ) %>%
+#       pull(Player)
+#   }
+#   )
+#   
+#   
+#   selectInput(
+#     inputId = "Deck_from_entry_Player",
+#     label = "Player",
+#     choices = c(NULL, unique(choice_player())),
+#     multiple = TRUE
+#   )
+# })
+# 
+# 
+# 
+# 
+# 
+# 
+# 
+# 
+# 
+# # # Need to add date
+# # 
+# # 
+# # observeEvent(Side_from_entry_filter(),{
+# #     updateSelectInput(
+# #       session,
+# #       inputId = "Deck_from_entry_deck_test",
+# #       choices = c(NULL, unique(Side_from_entry_filter()$Deck)),
+# #       selected = input$Deck_from_entry_deck_test
+# #     )
+# # 
+# #     updateSelectInput(
+# #       session,
+# #       inputId = "Deck_from_entry_color_deck",
+# #       choices = c(NULL, unique(Side_from_entry_filter()$color_deck)),
+# #       selected = input$Deck_from_entry_color_deck
+# #     )
+# # 
+# #     updateSelectInput(
+# #       session,
+# #       inputId = "Deck_from_entry_Companion",
+# #       choices = c(NULL, unique(Side_from_entry_filter()$Companion)),
+# #       selected = input$Deck_from_entry_Companion
+# #     )
+# # 
+# #     updateSelectInput(
+# #       session,
+# #       inputId = "Deck_from_entry_wishboard",
+# #       choices = c(NULL, unique(Side_from_entry_filter()$Wish_board)),
+# #       selected = input$Deck_from_entry_wishboard
+# #     )
+# # 
+# #     updateSelectInput(
+# #       session,
+# #       inputId = "Deck_from_entry_Player",
+# #       choices = c(NULL, unique(Side_from_entry_filter()$Player)),
+# #       selected = input$Deck_from_entry_Player
+# #     )
+# #   
+# # })
+# 
+
+
