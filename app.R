@@ -201,40 +201,6 @@ ui <- navbarPage(
             choices = c("", unique(side_plan_from_entry_base$Deck)),
             multiple = FALSE
       ),
-      #     selectInput(
-      #       inputId = "Deck_from_entry_color_deck",
-      #       label = "Color deck",
-      #       choices = c(NULL, unique(side_plan_from_entry_base$color_deck)),
-      #       multiple = TRUE
-      #     ),
-      # 
-      #     selectInput(
-      #       inputId = "Deck_from_entry_Companion",
-      #       label = "Companion",
-      #       choices = c(NULL, unique(side_plan_from_entry_base$Companion)),
-      #       multiple = TRUE
-      #     ),
-      # 
-      #     selectInput(
-      #       inputId = "Deck_from_entry_wishboard",
-      #       label = "Wishboard",
-      #       choices = c(NULL, unique(side_plan_from_entry_base$Wish_board)),
-      #       multiple = TRUE
-      #     ),
-      #     selectInput(
-      #       inputId = "Deck_from_entry_Player",
-      #       label = "Player",
-      #       choices = c(NULL, unique(side_plan_from_entry_base$Player)),
-      #       multiple = TRUE
-      #     ),
-      # 
-      #     selectInput(
-      #       inputId = "Deck_from_entry_link_deck_list",
-      #       label = "Wishboard",
-      #       choices = c(NULL, unique(side_plan_from_entry_base$link_deck_list)),
-      #       multiple = TRUE
-      #     ),
-        
         
         # uiOutput("Deck_from_entry_deck_test"),
         uiOutput("Deck_from_entry_color_deck"),
@@ -474,23 +440,12 @@ output$empty_Side_table_from_list <- renderDT({
 ################################################################################  
 ############################   side_from_data_entry  ###########################
 ################################################################################   
-
 # a <- read_rds(file.path(data_folder, "df_Side_table.rds"))
 # 
 # colnames(a)
-
-
-
-
 observeEvent(input$browser, {
   browser()
 })
-
-
-
-
-
-
 
 
 observeEvent( input$Deck_from_entry_deck_test,{  
@@ -502,8 +457,7 @@ observeEvent( input$Deck_from_entry_deck_test,{
       )
   }
   )
-  
-  
+ 
   output$Deck_from_entry_color_deck <- renderUI({
     auto_select_input_if_one_choice(
       inputId = "Deck_from_entry_color_deck",
@@ -707,7 +661,6 @@ observeEvent(req(result_opti()),{
               )
               
     )}
-    
   )
 
     output$efetch_opti_res_number_of_fetchable <- renderDT({
@@ -722,15 +675,6 @@ observeEvent(req(result_opti()),{
       )}
 
     )
-
-
-
-
-    # shinyjs::reset('deck_list_fetch_opti')
-    # shinyjs::reset('Deck_type_fetch_Deck_list')
-
-  
-  
 })
 
 }
@@ -746,52 +690,48 @@ shinyApp(ui, server)
 
 
 
-# 
-# a <- side_plan_from_entry_base %>% 
+
+# a <- side_plan_from_entry_base %>%
 #   filter(link_deck_list %in% c(
 #     "data/deck_list/Omnath Control/Any_Kaheera, the Orphanguard_No wish board_RespectTheCat_2023-09-08_Mtgo leagu_.csv",
 #     "data/deck_list/Omnath Control/Any_Kaheera, the Orphanguard_No wish board_Andrea Mengucci_2023-09-08_VEEDEO_.csv"
 #                                )
 #     )
-# 
-# 
-# 
-# d <- a %>% 
-#   mutate(
-#     IN = str_split(IN," ; "),
-#     OUT = str_split(OUT," ; ")
-#   ) %>% 
-#   pivot_longer(cols = c(IN,OUT)
-#                
-#                ) %>% 
-#   unnest_longer(col = c(value) 
-#   )
-# 
-# 
-# 
-# 
-# b <-  lapply(unique(a$link_deck_list), function(x){
-#   read.csv(
-#     paste0(Data_from_other_repo,
-#            x
-#     )
-#   )
-# }
-# )
-# 
-# names(b) <- unique(a$link_deck_list)
-#   
-#   
-# 
-#   
-# a <- side_plan_from_entry_base %>% 
-#   filter(Player == "mistakenn69"
-#   ) %>% select(Matchup,Play_Draw,IN,OUT)
-# 
-#   
-# 
-# 
-# 
+
+
+
+
+d <- a %>%
+  mutate(
+    hash_tot = paste0(hash_deck,hash_side),
+    IN = str_split(IN," ; "),
+    OUT = str_split(OUT," ; ")
+  ) %>%
+  rownames_to_column() %>% 
+  pivot_longer(cols = c(IN,OUT)
+
+               ) %>%
+  unnest_longer(col = c(value)
+  )
+
+
+
+
+e <- d %>% 
+  mutate(quantite = str_extract(value,"^\\d{1}"),
+         value = str_remove(value,"^\\d{1}"))
+
+f <- e %>% 
+  group_by(rowname,name) %>% 
+  summarise(b = paste0(sort(value),collapse = " / "),.groups = "drop") 
+
+
+  
+
+  
+f %>% janitor::get_dupes(b) %>%
+  inner_join( a %>% rownames_to_column(),by = c("rowname")) %>% 
+  view()
 
 
 
@@ -801,6 +741,56 @@ shinyApp(ui, server)
 
 
 
+
+
+
+b <-  lapply(unique(a$link_deck_list), function(x){
+  list_loaded_x <- read.csv(
+    paste0(Data_from_other_repo,
+           x
+    )
+  )
+  main_deck_en_cours_x <- list_loaded_x %>%
+    filter(!Side) %>%
+    select(-Side) %>%
+    arrange(Card_name)
+  side_en_cours_x <- list_loaded_x %>%
+    filter(Side) %>%
+    select(-Side) %>%
+    arrange(Card_name)
+  return(
+    list(
+     path = x,
+     main = list(main_deck_en_cours_x),
+     side = list(side_en_cours_x),
+     hash_deck = digest(main_deck_en_cours_x),
+     hash_side = digest(side_en_cours_x)
+              )
+    )
+}
+) 
+
+
+
+
+
+x <- unique(a$link_deck_list)[1]
+names(b) <- unique(a$link_deck_list)
+
+
+d <- b %>% unique()
+
+
+a <- side_plan_from_entry_base %>%
+  filter(Player == "mistakenn69"
+  ) #%>% 
+  # select(Matchup,Play_Draw,IN,OUT)
+
+
+
+e <- lapply(b, function(x) digest(x)) %>% unlist()
+
+f <- data.frame(a = names(e),b = e)
 
 
 
