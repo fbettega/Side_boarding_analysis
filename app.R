@@ -30,6 +30,39 @@ Modern_card_DB <- read.csv("data/DBcarte_modern.csv")
 side_plan_from_entry_base <- readRDS(file.path(data_folder,"df_Side_table.rds"))
 
 
+
+
+headerCallback <- c(
+  "function(thead, data, start, end, display){",
+  "  var $ths = $(thead).find('th');",
+  "  $ths.css({'vertical-align': 'bottom', 'white-space': 'nowrap'});",
+  "  var betterCells = [];",
+  "  $ths.each(function(){",
+  "    var cell = $(this);",
+  "    var newDiv = $('<div>', {height: 'auto', width: cell.height()});",
+  "    var newInnerDiv = $('<div>', {text: cell.text()});",
+  "    newDiv.css({margin: 'auto'});",
+  "    newInnerDiv.css({",
+  "      transform: 'rotate(180deg)',",
+  "      'writing-mode': 'tb-rl',",
+  "      'white-space': 'nowrap'",
+  "    });",
+  "    newDiv.append(newInnerDiv);",
+  "    betterCells.push(newDiv);",
+  "  });",
+  "  $ths.each(function(i){",
+  "    $(this).html(betterCells[i]);",
+  "  });",
+  "}"
+)
+
+
+
+
+
+
+
+
 liste_of_side_matchup <- list(
   all = c(unique(read_rds(file.path(data_folder, "modern_deck.rds"))$match_up)),
   all_with_color = (read_rds(file.path(data_folder, "modern_deck.rds")) %>%
@@ -215,7 +248,7 @@ ui <- navbarPage(
     
     
     mainPanel(
-      
+      uiOutput("t1")
       # DTOutput('empty_Side_table_from_list')
       
     )
@@ -521,6 +554,166 @@ output$Deck_from_entry_Deck_list <- renderUI({
 
 
 
+list_of_decklist_to_print <- eventReactive(input$Deck_from_entry_link_deck_list,{
+  
+  if(input$Deck_from_entry_link_deck_list != "All"){
+
+  list_of_side_to_print_base <- Side_from_entry_filter() %>%
+    filter(link_deck_list %in% input$Deck_from_entry_link_deck_list) %>%
+    select(Player,Matchup,#Play_Draw,
+           IN,OUT) %>%
+    group_split(Matchup)
+
+  } else {
+
+
+    list_of_side_to_print_base <- Side_from_entry_filter()  %>%
+      select(Player,Matchup,#Play_Draw,
+             IN,OUT) %>%
+      group_split(Matchup)
+
+
+  }
+
+  
+  
+  list_of_side_to_print_split_by_matchup <- 
+    lapply(list_of_side_to_print_base, function(x){
+      x %>%
+        mutate(
+          IN = str_split(IN," ; "),
+          OUT = str_split(OUT," ; ")
+        ) %>%
+        rownames_to_column() %>%
+        pivot_longer(cols = c(IN,OUT)
+                     
+        ) %>%
+        unnest_longer(col = c(value)
+        ) %>%
+        mutate(
+          quantite = as.numeric(str_extract(value,"^\\d{1}")),
+          value = trimws(str_remove(value,"^\\d{1}"))
+        ) %>% 
+        pivot_wider(names_from = c(name,value),
+                    values_from = quantite) %>% 
+        replace(is.na(.), 0) %>% 
+        select(-rowname) %>% 
+        relocate(starts_with("OUT_"),.after = last_col())}
+    )
+  
+  
+  return(list_of_side_to_print_split_by_matchup)
+ 
+}
+
+
+
+)
+
+
+
+
+
+
+observeEvent(list_of_decklist_to_print(),{
+lapply(1:length(list_of_decklist_to_print()), 
+       function(i) { 
+
+         
+  number_of_in <- ncol(list_of_decklist_to_print()[[i]] %>%
+                                select(starts_with("IN_")))
+         
+  number_of_out <- ncol(list_of_decklist_to_print()[[i]] %>% 
+                                 select(starts_with("OUT_")))
+         
+  column_name_en_cours <- str_remove_all(
+    list_of_decklist_to_print()[[i]] %>% 
+      select(-Matchup) %>% 
+      rename(` `= Player) %>% 
+      colnames(),
+    "IN_|OUT_")
+         
+         
+  sketch = htmltools::withTags(table(
+           class = 'display',
+           thead(
+             # Define the grouping of your df
+             tr(
+               th(class = 'dt-center',
+                  colspan = 1,
+                  ''),
+               th(class = 'dt-center',
+                  colspan = number_of_in,
+                  'IN'),
+               th(class = 'dt-center',
+                  colspan = number_of_out,
+                  'OUT')
+             ),
+
+             tr(
+               lapply(column_name_en_cours, th)
+             )
+           )
+         ))       
+         
+       
+         
+  output[[paste0("table",i)]] <- 
+    renderDT(datatable(list_of_decklist_to_print()[[i]] %>% 
+               select(-Matchup),
+               class = "compact",
+               caption = htmltools::tags$caption(
+                 strong(
+                   unique(
+                     list_of_decklist_to_print()[[i]]$Matchup)),
+                 style = "font-size:18px;"), 
+               rownames= FALSE,
+               container = sketch,
+               options = list(
+                 headerCallback = JS("function(thead) {
+  $(thead).closest('thead').find('th').eq(1).css('background-color', '#D9E1F2');
+   $(thead).closest('thead').find('th').eq(2).css('background-color', '#8EA9DB');
+}"),
+                 # headerCallback = JS(headerCallback),
+                 pageLength = 1000, 
+                 lengthChange = FALSE,
+                 # fixedHeader = TRUE,
+                  # autoWidth = TRUE,
+                 ordering = FALSE,
+                  # scrollX=TRUE,
+                 columnDefs = list(
+                   list(targets = "_all", className = "dt-left")
+                 ),
+                 dom = 't')
+               
+               ) %>% 
+               formatStyle(c(1,number_of_in + 1), `border-right` = "solid 2px"))
+             
+
+})
+
+
+  
+  
+output$t1 <- renderUI({
+  tagList(
+    lapply(1:length(list_of_decklist_to_print()),
+           function(i) { 
+      DTOutput(paste0("table",i)
+               )
+    })
+  )
+})
+
+
+}
+)
+
+
+################################################################################
+
+
+
 ################################################################################  
 ############################   Fetch optimizer  ###########################
 ################################################################################   
@@ -701,96 +894,119 @@ shinyApp(ui, server)
 
 
 
-d <- a %>%
-  mutate(
-    hash_tot = paste0(hash_deck,hash_side),
-    IN = str_split(IN," ; "),
-    OUT = str_split(OUT," ; ")
-  ) %>%
-  rownames_to_column() %>% 
-  pivot_longer(cols = c(IN,OUT)
+# d <- a %>%
+#   mutate(
+#     hash_tot = paste0(hash_deck,hash_side),
+#     IN = str_split(IN," ; "),
+#     OUT = str_split(OUT," ; ")
+#   ) %>%
+#   rownames_to_column() %>%
+#   pivot_longer(cols = c(IN,OUT)
+# 
+#                ) %>%
+#   unnest_longer(col = c(value)
+#   ) %>%
+#   mutate(
+#     quantite = str_extract(value,"^\\d{1}"),
+#     value = str_remove(value,"^\\d{1}")
+#          )
+# 
+# e %>%
+#   filter(Deck=="Scapeshift")
+# 
+# 
+# 
+# 
+# toto <- a %>%
+#   filter(Play_Draw != "Both") %>%
+#   pivot_wider(names_from = Play_Draw,
+#               values_from = c(
+#                 IN,OUT
+#                 ),
+#               values_fill  = list(""),
+#               values_fn = list
+#               ) %>%
+#   unnest_longer(col = c(IN_Play,IN_Draw,OUT_Play,OUT_Draw)) %>%
+#   filter(IN_Play == IN_Draw,OUT_Play == OUT_Draw)
+# 
+# 
+# 
+# 
+# 
+# 
+# f <- d %>%
+#   group_by(rowname,name) %>%
+#   summarise(b = trimws(paste0(sort(value),collapse = " ; ")),
+# 
+#             .groups = "drop") %>%
+#   pivot_wider(names_from = name,values_from = b)
+# 
+# 
+# 
+# 
+# 
+# 
+# g <- inner_join(a %>%
+#                   rownames_to_column() %>%
+#                    select(-IN,-OUT),
+#                 f,by ="rowname") %>%
+#   relocate(
+#                   Note_side_plan ,Fiability,hash_deck,hash_side,
+#                   .after = last_col())
+# 
+# 
+#  # write_rds(a %>% select(-rowname),file.path(data_folder,"df_Side_table.rds"))
+# 
+# 
+# 
+# 
+# g %>% janitor::get_dupes(IN,OUT,hash_deck,hash_side,Matchup) %>% view()
+# 
+# 
+# a <- side_plan_from_entry_base %>%
+#   filter(Player == "mistakenn69"
+#   ) #%>%
+#   # select(Matchup,Play_Draw,IN,OUT)
+# 
+# 
+# b <- a %>% 
+#   filter(Deck == "Scapeshift") %>% 
+#   select(Player,Matchup,#Play_Draw,
+#          IN,OUT) %>% 
+#     group_split(Matchup)
+# 
+# 
+# 
+# d <- 
+#   lapply(b, function(x){
+#   x %>%
+#   mutate(
+#     IN = str_split(IN," ; "),
+#     OUT = str_split(OUT," ; ")
+#   ) %>%
+#   rownames_to_column() %>%
+#   pivot_longer(cols = c(IN,OUT)
+#                
+#   ) %>%
+#   unnest_longer(col = c(value)
+#   ) %>%
+#   mutate(
+#     quantite = as.numeric(str_extract(value,"^\\d{1}")),
+#     value = trimws(str_remove(value,"^\\d{1}"))
+#   ) %>% 
+#   pivot_wider(names_from = c(name,value),
+#               values_from = quantite) %>% 
+#   replace(is.na(.), 0) %>% 
+#   relocate(starts_with("OUT_"),.after = last_col())}
+#   )
+# 
 
-               ) %>%
-  unnest_longer(col = c(value)
-  )
-
-
-
-
-e <- d %>% 
-  mutate(quantite = str_extract(value,"^\\d{1}"),
-         value = str_remove(value,"^\\d{1}"))
-
-f <- e %>% 
-  group_by(rowname,name) %>% 
-  summarise(b = paste0(sort(value),collapse = " / "),.groups = "drop") 
-
-
-  
-
-  
-f %>% janitor::get_dupes(b) %>%
-  inner_join( a %>% rownames_to_column(),by = c("rowname")) %>% 
-  view()
 
 
 
 
 
 
-
-
-
-
-
-
-b <-  lapply(unique(a$link_deck_list), function(x){
-  list_loaded_x <- read.csv(
-    paste0(Data_from_other_repo,
-           x
-    )
-  )
-  main_deck_en_cours_x <- list_loaded_x %>%
-    filter(!Side) %>%
-    select(-Side) %>%
-    arrange(Card_name)
-  side_en_cours_x <- list_loaded_x %>%
-    filter(Side) %>%
-    select(-Side) %>%
-    arrange(Card_name)
-  return(
-    list(
-     path = x,
-     main = list(main_deck_en_cours_x),
-     side = list(side_en_cours_x),
-     hash_deck = digest(main_deck_en_cours_x),
-     hash_side = digest(side_en_cours_x)
-              )
-    )
-}
-) 
-
-
-
-
-
-x <- unique(a$link_deck_list)[1]
-names(b) <- unique(a$link_deck_list)
-
-
-d <- b %>% unique()
-
-
-a <- side_plan_from_entry_base %>%
-  filter(Player == "mistakenn69"
-  ) #%>% 
-  # select(Matchup,Play_Draw,IN,OUT)
-
-
-
-e <- lapply(b, function(x) digest(x)) %>% unlist()
-
-f <- data.frame(a = names(e),b = e)
 
 
 
