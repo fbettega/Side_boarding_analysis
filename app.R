@@ -3,13 +3,15 @@ library(tidyverse)
 library(datamods)
 library(data.table)
 library(DT)
+library(flextable)
+library(shinyscreenshot)
 conflicted::conflict_prefer("filter", "dplyr")
 conflicted::conflicts_prefer(DT::renderDataTable)
 conflicted::conflicts_prefer(shiny::renderDataTable)
 
 source("sources.R")
 
-
+# screenshotButton()
 # TO DO
 # fetch optimizer debug real optimum
 # check if deck is opti
@@ -242,7 +244,8 @@ ui <- navbarPage(
         uiOutput("Deck_from_entry_Player"),
         h2("Choose list"),
       actionButton("browser", label ="browser" ),
-        uiOutput("Deck_from_entry_Deck_list")
+        uiOutput("Deck_from_entry_Deck_list"),
+      screenshotButton(id = "t1",label = "Capture entire page")
       )
     ),
     
@@ -557,24 +560,60 @@ output$Deck_from_entry_Deck_list <- renderUI({
 list_of_decklist_to_print <- eventReactive(input$Deck_from_entry_link_deck_list,{
   
   if(input$Deck_from_entry_link_deck_list != "All"){
+    
 
-  list_of_side_to_print_base <- Side_from_entry_filter() %>%
-    filter(link_deck_list %in% input$Deck_from_entry_link_deck_list) %>%
-    select(Player,Matchup,#Play_Draw,
-           IN,OUT) %>%
-    group_split(Matchup)
+    Deck_list_base_filter <- Side_from_entry_filter() %>%
+      filter(link_deck_list %in% input$Deck_from_entry_link_deck_list)
+    
+    list_of_side_to_print_base <- 
+      Deck_list_base_filter %>%
+      select(
+        # link_deck_list,
+        Player,
+        Matchup,
+        Play_Draw,
+        IN,
+        OUT
+      ) %>%
+      arrange(
+        desc(
+          Matchup
+          )
+        ) %>% 
+      group_split(
+        Matchup
+        )
 
   } else {
-
+    
+    Deck_list_base_filter <- Side_from_entry_filter()
 
     list_of_side_to_print_base <- Side_from_entry_filter()  %>%
-      select(Player,Matchup,#Play_Draw,
-             IN,OUT) %>%
-      group_split(Matchup)
+      select(
+        # link_deck_list,
+        Player,
+        Matchup,
+        Play_Draw,
+        IN,
+        OUT
+        ) %>%
+      arrange(
+        desc(
+          Matchup
+        )
+      ) %>%
+      group_split(
+        Matchup
+        )
 
 
   }
-
+  
+  
+ 
+  
+  
+  
   
   
   list_of_side_to_print_split_by_matchup <- 
@@ -626,69 +665,47 @@ lapply(1:length(list_of_decklist_to_print()),
   number_of_out <- ncol(list_of_decklist_to_print()[[i]] %>% 
                                  select(starts_with("OUT_")))
          
-  column_name_en_cours <- str_remove_all(
+  ref_table <- data.frame(
+    key = colnames(
+      list_of_decklist_to_print()[[i]] %>% 
+        select(-Matchup)
+      ),
+    label = str_remove_all(
+      list_of_decklist_to_print()[[i]] %>% 
+        select(-Matchup) %>% 
+        rename(` `= Player) %>% 
+        colnames(),
+      "IN_|OUT_")
+  )
+         
+
+         
+  output[[paste0("table",i)]] <- renderUI({
     list_of_decklist_to_print()[[i]] %>% 
       select(-Matchup) %>% 
-      rename(` `= Player) %>% 
-      colnames(),
-    "IN_|OUT_")
-         
-         
-  sketch = htmltools::withTags(table(
-           class = 'display',
-           thead(
-             # Define the grouping of your df
-             tr(
-               th(class = 'dt-center',
-                  colspan = 1,
-                  ''),
-               th(class = 'dt-center',
-                  colspan = number_of_in,
-                  'IN'),
-               th(class = 'dt-center',
-                  colspan = number_of_out,
-                  'OUT')
-             ),
-
-             tr(
-               lapply(column_name_en_cours, th)
-             )
-           )
-         ))       
-         
-       
-         
-  output[[paste0("table",i)]] <- 
-    renderDT(datatable(list_of_decklist_to_print()[[i]] %>% 
-               select(-Matchup),
-               class = "compact",
-               caption = htmltools::tags$caption(
-                 strong(
-                   unique(
-                     list_of_decklist_to_print()[[i]]$Matchup)),
-                 style = "font-size:18px;"), 
-               rownames= FALSE,
-               container = sketch,
-               options = list(
-                 headerCallback = JS("function(thead) {
-  $(thead).closest('thead').find('th').eq(1).css('background-color', '#D9E1F2');
-   $(thead).closest('thead').find('th').eq(2).css('background-color', '#8EA9DB');
-}"),
-                 # headerCallback = JS(headerCallback),
-                 pageLength = 1000, 
-                 lengthChange = FALSE,
-                 # fixedHeader = TRUE,
-                  # autoWidth = TRUE,
-                 ordering = FALSE,
-                  # scrollX=TRUE,
-                 columnDefs = list(
-                   list(targets = "_all", className = "dt-left")
-                 ),
-                 dom = 't')
-               
-               ) %>% 
-               formatStyle(c(1,number_of_in + 1), `border-right` = "solid 2px"))
-             
+      flextable() %>% 
+      set_header_df(
+        mapping = ref_table,
+        key = "key") %>%
+      add_header_row(
+        values = c(
+            unique(
+              list_of_decklist_to_print()[[i]]$Matchup)
+            , "IN","OUT"),
+        colwidths = c(
+          2,
+          number_of_in,
+          number_of_out
+          ),
+        top = TRUE)  %>% 
+      theme_zebra() %>% 
+      theme_box() %>% 
+      align( align = "center", part = "all") %>% 
+      autofit() %>%
+      htmltools_value(ft.align = "left")
+  })
+    
+    
 
 })
 
@@ -699,7 +716,7 @@ output$t1 <- renderUI({
   tagList(
     lapply(1:length(list_of_decklist_to_print()),
            function(i) { 
-      DTOutput(paste0("table",i)
+             uiOutput(paste0("table",i)
                )
     })
   )
