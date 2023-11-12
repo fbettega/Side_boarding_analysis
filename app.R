@@ -141,7 +141,8 @@ ui <- navbarPage(
           choices =  c("Deck","color_deck","Companion","Wish_board","Player"),
           selected = c("Deck","color_deck","Companion","Wish_board"),
           multiple = TRUE
-        )
+        ),
+        # actionButton("browser", label ="browser" )
       ),
       wellPanel(
         selectInput(
@@ -407,10 +408,67 @@ observeEvent( c(input$Deck_dash_side,input$Deck_dash_side_grouping_variable),{
   
   )
   
+  
+  
+  # a <- df_Side_table_choosen_deck() %>% 
+  #   filter(color_deck %==% input$Deck_dash_side_color,
+  #          Companion %==% input$Deck_dash_side_companion,
+  #          Wish_board %==% input$Deck_dash_side_wishboard)
+  # 
+  # 
+  # b <- a %>%
+  #   mutate(
+  #     IN = str_split(IN," ; "),
+  #     OUT = str_split(OUT," ; ")
+  #   ) %>%
+  #   rownames_to_column() %>%
+  #   pivot_longer(cols = c(IN,OUT)) %>%
+  #   unnest_longer(col = c(value)
+  #   ) %>%
+  #   mutate(
+  #     quantite = as.numeric(str_extract(value,"^\\d{1}")),
+  #     value = trimws(str_remove(value,"^\\d{1}"))
+  #   ) 
+  # 
+  # 
+  # 
+  # list_of_side_to_print_split_by_matchup <- 
+  #   lapply(list_of_side_to_print_base, function(x){
+  #     x %>%
+  #       mutate(
+  #         IN = str_split(IN," ; "),
+  #         OUT = str_split(OUT," ; ")
+  #       ) %>%
+  #       rownames_to_column() %>%
+  #       pivot_longer(cols = c(IN,OUT)
+  #                    
+  #       ) %>%
+  #       unnest_longer(col = c(value)
+  #       ) %>%
+  #       mutate(
+  #         quantite = as.numeric(str_extract(value,"^\\d{1}")),
+  #         value = trimws(str_remove(value,"^\\d{1}"))
+  #       ) %>% 
+  #       pivot_wider(names_from = c(name,value),
+  #                   values_from = quantite) %>% 
+  #       replace(is.na(.), 0) %>% 
+  #       select(-rowname) %>% 
+  #       relocate(starts_with("OUT_"),.after = last_col())}
+  #   )
+  # 
+  
+  
+  
+  
+
+  observeEvent(input$browser, {
+    browser()
+  })
+    
 }
 )
-  
-  
+
+
 
 
 
@@ -546,6 +604,11 @@ Side_from_entry_filter <- reactive({
 }
 )
 
+
+
+
+  
+  
 output$Deck_from_entry_Deck_list <- renderUI({
   selectInput(
     inputId = "Deck_from_entry_link_deck_list",
@@ -609,8 +672,7 @@ list_of_decklist_to_print <- eventReactive(input$Deck_from_entry_link_deck_list,
 
   }
   
-  
- 
+
   
   
   
@@ -630,12 +692,14 @@ list_of_decklist_to_print <- eventReactive(input$Deck_from_entry_link_deck_list,
         unnest_longer(col = c(value)
         ) %>%
         mutate(
-          quantite = as.numeric(str_extract(value,"^\\d{1}")),
-          value = trimws(str_remove(value,"^\\d{1}"))
+          # quantite = as.numeric(str_extract(value,"^\\d{1}")),
+          # value = trimws(str_remove(value,"^\\d{1}"))
+          quantite = str_extract(value,"^\\d*/(NA|\\d*)"),
+          value = trimws(str_remove(value,"^\\d*/(NA|\\d*)"))
         ) %>% 
         pivot_wider(names_from = c(name,value),
                     values_from = quantite) %>% 
-        replace(is.na(.), 0) %>% 
+        replace(is.na(.), "") %>% 
         select(-rowname) %>% 
         relocate(starts_with("OUT_"),.after = last_col())}
     )
@@ -702,6 +766,7 @@ lapply(1:length(list_of_decklist_to_print()),
       theme_box() %>% 
       align( align = "center", part = "all") %>% 
       autofit() %>%
+      vline(j =number_of_in+2, border = officer::fp_border(color = "black", style = "solid", width = 3),part = "body") %>% 
       htmltools_value(ft.align = "left")
   })
     
